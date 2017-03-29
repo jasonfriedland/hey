@@ -26,7 +26,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/rakyll/hey/requester"
+	"github.com/jasonfriedland/hey/asap"
+	"github.com/jasonfriedland/hey/requester"
 )
 
 const (
@@ -55,6 +56,7 @@ var (
 	contentType = flag.String("T", "text/html", "")
 	authHeader  = flag.String("a", "", "")
 	hostHeader  = flag.String("host", "", "")
+	asapFile    = flag.String("asap", "", "")
 
 	output = flag.String("o", "", "")
 
@@ -96,6 +98,8 @@ Options:
   -a  Basic authentication, username:password.
   -x  HTTP Proxy address as host:port.
   -h2 Enable HTTP/2.
+
+  -asap Path to ASAP config file.
 
   -host	HTTP Host header.
 
@@ -178,6 +182,16 @@ func main() {
 		bodyAll = slurp
 	}
 
+	// ASAP config file, optional
+	var asapConfig asap.Config
+	if *asapFile != "" {
+		configJSON, err := ioutil.ReadFile(*asapFile)
+		if err != nil {
+			errAndExit(err.Error())
+		}
+		asapConfig = *asap.ParseConfig(configJSON)
+	}
+
 	if *output != "csv" && *output != "" {
 		usageAndExit("Invalid output type; only csv is supported.")
 	}
@@ -215,6 +229,7 @@ func main() {
 		DisableCompression: *disableCompression,
 		DisableKeepAlives:  *disableKeepAlives,
 		H2:                 *h2,
+		AsapConfig:         asapConfig,
 		ProxyAddr:          proxyURL,
 		Output:             *output,
 		EnableTrace:        *enableTrace,

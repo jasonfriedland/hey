@@ -35,7 +35,7 @@ type report struct {
 
 	trace     bool //if trace is set, the following fields will be filled
 	avgConn   float64
-	avgDns    float64
+	avgDNS    float64
 	avgReq    float64
 	avgRes    float64
 	avgDelay  float64
@@ -80,7 +80,7 @@ func (r *report) finalize() {
 			if r.trace {
 				r.avgConn += res.connDuration.Seconds()
 				r.avgDelay += res.delayDuration.Seconds()
-				r.avgDns += res.dnsDuration.Seconds()
+				r.avgDNS += res.dnsDuration.Seconds()
 				r.avgReq += res.reqDuration.Seconds()
 				r.avgRes += res.resDuration.Seconds()
 				r.connLats = append(r.connLats, res.connDuration.Seconds())
@@ -100,7 +100,7 @@ func (r *report) finalize() {
 	if r.trace {
 		r.avgConn = r.avgConn / float64(len(r.lats))
 		r.avgDelay = r.avgDelay / float64(len(r.lats))
-		r.avgDns = r.avgDns / float64(len(r.lats))
+		r.avgDNS = r.avgDNS / float64(len(r.lats))
 		r.avgReq = r.avgReq / float64(len(r.lats))
 		r.avgRes = r.avgRes / float64(len(r.lats))
 	}
@@ -146,7 +146,7 @@ func (r *report) print() {
 		if r.trace {
 			r.printf("\nDetailed Report:\n")
 			r.printSection("DNS+dialup", r.avgConn, r.connLats)
-			r.printSection("DNS-lookup", r.avgDns, r.dnsLats)
+			r.printSection("DNS-lookup", r.avgDNS, r.dnsLats)
 			r.printSection("Request Write", r.avgReq, r.reqLats)
 			r.printSection("Response Wait", r.avgDelay, r.delayLats)
 			r.printSection("Response Read", r.avgRes, r.resLats)

@@ -26,9 +26,11 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/jasonfriedland/hey/asap"
 	"golang.org/x/net/http2"
 )
 
@@ -46,6 +48,7 @@ type result struct {
 	contentLength int64
 }
 
+// Work represents a unit of work.
 type Work struct {
 	// Request is the request to be made.
 	Request *http.Request
@@ -60,6 +63,9 @@ type Work struct {
 
 	// H2 is an option to make HTTP/2 requests
 	H2 bool
+
+	// AsapConfig is the ASAP config.
+	AsapConfig asap.Config
 
 	// EnableTrace is an option to enable httpTrace
 	EnableTrace bool
@@ -161,7 +167,7 @@ func (b *Work) makeRequest(c *http.Client) {
 	var code int
 	var dnsStart, connStart, resStart, reqStart, delayStart time.Time
 	var dnsDuration, connDuration, resDuration, reqDuration, delayDuration time.Duration
-	req := cloneRequest(b.Request, b.RequestBody)
+	req := prepareRequest(b.Request, b.RequestBody, &b.AsapConfig)
 	if b.EnableTrace {
 		trace := &httptrace.ClientTrace{
 			DNSStart: func(info httptrace.DNSStartInfo) {
@@ -255,9 +261,9 @@ func (b *Work) runWorkers() {
 	wg.Wait()
 }
 
-// cloneRequest returns a clone of the provided *http.Request.
+// prepareRequest returns a clone of the provided *http.Request.
 // The clone is a shallow copy of the struct and its Header map.
-func cloneRequest(r *http.Request, body []byte) *http.Request {
+func prepareRequest(r *http.Request, body []byte, asapConfig *asap.Config) *http.Request {
 	// shallow copy of the struct
 	r2 := new(http.Request)
 	*r2 = *r
@@ -266,8 +272,21 @@ func cloneRequest(r *http.Request, body []byte) *http.Request {
 	for k, s := range r.Header {
 		r2.Header[k] = append([]string(nil), s...)
 	}
+	if len(asapConfig.Kid) > 0 {
+		r2 = injectAuthHeader(r2, asapConfig)
+	}
 	if len(body) > 0 {
 		r2.Body = ioutil.NopCloser(bytes.NewReader(body))
 	}
 	return r2
+}
+
+func injectAuthHeader(r *http.Request, asapConfig *asap.Config) *http.Request {
+	authToken, err := asapConfig.GenerateAuthToken()
+	if err != nil {
+		// Return un-modified request
+		return r
+	}
+	r.Header.Set("Authorization", strings.TrimSpace(authToken))
+	return r
 }
