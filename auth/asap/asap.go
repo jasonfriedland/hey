@@ -20,6 +20,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 
 	"strings"
@@ -36,10 +37,22 @@ type Config struct {
 	Expiry     int64    `json:"expiry"`
 }
 
-// ParseConfig reads a config file and unmarshalls its contents.
-func ParseConfig(config []byte) *Config {
-	asapConfig := &Config{}
-	if err := json.Unmarshal(config, &asapConfig); err != nil {
+// Name is the unique name of this provider
+func (config Config) Name() string {
+	return "asap"
+}
+
+// GetProvider returns an auth.Provider interface
+func GetProvider(authConfig *string) Config {
+	asapConfig := Config{}
+
+	configJSON, err := ioutil.ReadFile(*authConfig)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+
+	}
+	if err := json.Unmarshal(configJSON, &asapConfig); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
@@ -47,7 +60,7 @@ func ParseConfig(config []byte) *Config {
 }
 
 // GenerateAuthToken generates a unique Bearer token per request.
-func (config *Config) GenerateAuthToken() (string, error) {
+func (config Config) GenerateAuthToken() (string, error) {
 	privateKey, err := privateKeyFromBytes([]byte(config.PrivateKey))
 	if err != nil {
 		return "", err

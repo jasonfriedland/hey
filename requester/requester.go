@@ -30,7 +30,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jasonfriedland/hey/asap"
+	"github.com/jasonfriedland/hey/auth"
 	"golang.org/x/net/http2"
 )
 
@@ -64,8 +64,8 @@ type Work struct {
 	// H2 is an option to make HTTP/2 requests
 	H2 bool
 
-	// AsapConfig is the ASAP config.
-	AsapConfig asap.Config
+	// AuthProvider is the name of the auth provider
+	AuthProvider auth.Provider
 
 	// EnableTrace is an option to enable httpTrace
 	EnableTrace bool
@@ -167,7 +167,7 @@ func (b *Work) makeRequest(c *http.Client) {
 	var code int
 	var dnsStart, connStart, resStart, reqStart, delayStart time.Time
 	var dnsDuration, connDuration, resDuration, reqDuration, delayDuration time.Duration
-	req := prepareRequest(b.Request, b.RequestBody, &b.AsapConfig)
+	req := prepareRequest(b.Request, b.RequestBody, b.AuthProvider)
 	if b.EnableTrace {
 		trace := &httptrace.ClientTrace{
 			DNSStart: func(info httptrace.DNSStartInfo) {
@@ -263,7 +263,7 @@ func (b *Work) runWorkers() {
 
 // prepareRequest returns a clone of the provided *http.Request.
 // The clone is a shallow copy of the struct and its Header map.
-func prepareRequest(r *http.Request, body []byte, asapConfig *asap.Config) *http.Request {
+func prepareRequest(r *http.Request, body []byte, authProvider auth.Provider) *http.Request {
 	// shallow copy of the struct
 	r2 := new(http.Request)
 	*r2 = *r
@@ -272,17 +272,19 @@ func prepareRequest(r *http.Request, body []byte, asapConfig *asap.Config) *http
 	for k, s := range r.Header {
 		r2.Header[k] = append([]string(nil), s...)
 	}
-	if len(asapConfig.Kid) > 0 {
-		r2 = injectAuthHeader(r2, asapConfig)
+
+	if authProvider.Name() == "asap" {
+		r2 = injectAuthHeader(r2, authProvider)
 	}
+
 	if len(body) > 0 {
 		r2.Body = ioutil.NopCloser(bytes.NewReader(body))
 	}
 	return r2
 }
 
-func injectAuthHeader(r *http.Request, asapConfig *asap.Config) *http.Request {
-	authToken, err := asapConfig.GenerateAuthToken()
+func injectAuthHeader(r *http.Request, provider auth.Provider) *http.Request {
+	authToken, err := provider.GenerateAuthToken()
 	if err != nil {
 		// Return un-modified request
 		return r

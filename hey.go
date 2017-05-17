@@ -26,7 +26,9 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/jasonfriedland/hey/asap"
+	"github.com/jasonfriedland/hey/auth"
+	"github.com/jasonfriedland/hey/auth/asap"
+	"github.com/jasonfriedland/hey/auth/none"
 	"github.com/jasonfriedland/hey/requester"
 )
 
@@ -56,7 +58,9 @@ var (
 	contentType = flag.String("T", "text/html", "")
 	authHeader  = flag.String("a", "", "")
 	hostHeader  = flag.String("host", "", "")
-	asapFile    = flag.String("asap", "", "")
+
+	authType   = flag.String("auth-type", "", "") // eg. basic, asap
+	authConfig = flag.String("auth-config", "", "")
 
 	output = flag.String("o", "", "")
 
@@ -99,7 +103,8 @@ Options:
   -x  HTTP Proxy address as host:port.
   -h2 Enable HTTP/2.
 
-  -asap Path to ASAP config file.
+  -auth-type Auth type, eg. basic, asap.
+  -auth-config Auth config.
 
   -host	HTTP Host header.
 
@@ -160,16 +165,6 @@ func main() {
 		header.Set("Accept", *accept)
 	}
 
-	// set basic auth if set
-	var username, password string
-	if *authHeader != "" {
-		match, err := parseInputWithRegexp(*authHeader, authRegexp)
-		if err != nil {
-			usageAndExit(err.Error())
-		}
-		username, password = match[1], match[2]
-	}
-
 	var bodyAll []byte
 	if *body != "" {
 		bodyAll = []byte(*body)
@@ -182,14 +177,33 @@ func main() {
 		bodyAll = slurp
 	}
 
-	// ASAP config file, optional
-	var asapConfig asap.Config
-	if *asapFile != "" {
-		configJSON, err := ioutil.ReadFile(*asapFile)
+	req, err := http.NewRequest(method, url, nil)
+	if err != nil {
+		usageAndExit(err.Error())
+	}
+	req.Header = header
+
+	var authProvider auth.Provider
+	authProvider = none.GetProvider(authConfig)
+
+	if *authType == "asap" && *authConfig != "" {
+		authProvider = asap.GetProvider(authConfig)
+	}
+
+	if *authType == "basic" && *authConfig != "" {
+		// set basic auth if set
+		var username, password string
+
+		match, err := parseInputWithRegexp(*authConfig, authRegexp)
 		if err != nil {
-			errAndExit(err.Error())
+			usageAndExit(err.Error())
 		}
-		asapConfig = *asap.ParseConfig(configJSON)
+		username, password = match[1], match[2]
+
+		if username != "" || password != "" {
+			req.SetBasicAuth(username, password)
+		}
+
 	}
 
 	if *output != "csv" && *output != "" {
@@ -203,15 +217,6 @@ func main() {
 		if err != nil {
 			usageAndExit(err.Error())
 		}
-	}
-
-	req, err := http.NewRequest(method, url, nil)
-	if err != nil {
-		usageAndExit(err.Error())
-	}
-	req.Header = header
-	if username != "" || password != "" {
-		req.SetBasicAuth(username, password)
 	}
 
 	// set host header if set
@@ -229,7 +234,7 @@ func main() {
 		DisableCompression: *disableCompression,
 		DisableKeepAlives:  *disableKeepAlives,
 		H2:                 *h2,
-		AsapConfig:         asapConfig,
+		AuthProvider:       authProvider,
 		ProxyAddr:          proxyURL,
 		Output:             *output,
 		EnableTrace:        *enableTrace,
