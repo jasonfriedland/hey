@@ -1,6 +1,7 @@
 module github.com/rakyll/hey
 
 require (
+	github.com/jasonfriedland/asap v0.0.0-20210601005242-7ceea5a63963
 	golang.org/x/net v0.0.0-20191009170851-d66e71096ffb
 	golang.org/x/text v0.3.2 // indirect
 )

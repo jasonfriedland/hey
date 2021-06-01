@@ -18,6 +18,7 @@ package requester
 import (
 	"bytes"
 	"crypto/tls"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -27,6 +28,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jasonfriedland/asap"
 	"golang.org/x/net/http2"
 )
 
@@ -98,6 +100,9 @@ type Work struct {
 	start    time.Duration
 
 	report *report
+
+	// ASAP auth client
+	asapClient *asap.Client
 }
 
 func (b *Work) writer() io.Writer {
@@ -112,6 +117,8 @@ func (b *Work) Init() {
 	b.initOnce.Do(func() {
 		b.results = make(chan *result, min(b.C*1000, maxResult))
 		b.stopCh = make(chan struct{}, b.C)
+		client, _ := asap.NewClient()
+		b.asapClient = client
 	})
 }
 
@@ -156,6 +163,9 @@ func (b *Work) makeRequest(c *http.Client) {
 	} else {
 		req = cloneRequest(b.Request, b.RequestBody)
 	}
+	// Bearer token
+	token, _ := b.asapClient.AuthToken()
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
 	trace := &httptrace.ClientTrace{
 		DNSStart: func(info httptrace.DNSStartInfo) {
 			dnsStart = now()
